@@ -90,3 +90,49 @@ nmcli device status
 ```
 
 The two settings are guidance to verify against the installed DKMS version; automatic signing was **not tested** in this session. Do not commit `mok.key`, Wi-Fi credentials, or machine-specific secrets.
+
+
+### Detailed setup and non-disruptive verification
+
+The MOK key was already enrolled on the verified machine, so it is **not necessary to generate another key or reenroll it**.
+
+1. Open the DKMS framework configuration:
+
+   ```bash
+   sudo nano /etc/dkms/framework.conf
+   ```
+
+2. Set the following values, uncommenting or editing existing definitions instead of creating duplicate, conflicting assignments:
+
+   ```bash
+   mok_signing_key="/var/lib/dkms/mok.key"
+   mok_certificate="/var/lib/dkms/mok.pub"
+   ```
+
+3. Confirm that both keys are nonempty and the signing tool exists:
+
+   ```bash
+   sudo test -s /var/lib/dkms/mok.key && echo "Private key OK"
+   sudo test -s /var/lib/dkms/mok.pub && echo "Certificate OK"
+   ls -l /lib/modules/$(uname -r)/build/scripts/sign-file
+   ```
+
+4. Before attempting a rebuild, inspect the DKMS version and active configuration:
+
+   ```bash
+   dkms --version
+   grep -n -E 'sign_file|sign_tool|mok_signing_key|mok_certificate' \
+     /etc/dkms/framework.conf
+   ```
+
+5. On a **subsequent** kernel update, inspect the rebuild and module signature:
+
+   ```bash
+   dkms status
+   modinfo -F signer 88x2bu
+   nmcli device status
+   ```
+
+   Expected signer: `Debian DKMS Module Signing`. If the module is unsigned or rejected, review DKMS build/signing logs before considering a custom `sign_tool` hook.
+
+**Validation status:** These are instructions for future automatic signing. The Wi-Fi driver was confirmed working after **manual** module signing and MOK enrollment, but an automatic DKMS rebuild/signing cycle was not tested. Avoid force-rebuilding or unloading the working Wi-Fi driver just to test this configuration.
